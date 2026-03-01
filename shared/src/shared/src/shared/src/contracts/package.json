@@ -1,0 +1,20 @@
+{
+  "name": "@signalstake/contracts",
+  "version": "1.0.0",
+  "description": "SignalStake BTC — OP_NET AssemblyScript Smart Contracts",
+  "scripts": {
+    "build": "asc assembly/index.ts --target release --outFile build/SignalStake.wasm --textFile build/SignalStake.wat --optimize --noAssert",
+    "build:debug": "asc assembly/index.ts --target debug --outFile build/SignalStake.debug.wasm",
+    "clean": "rm -rf build"
+  },
+  "dependencies": {
+    "@btc-vision/btc-runtime": "latest",
+    "@btc-vision/as-bignum": "latest"
+  },
+  "devDependencies": {
+    "assemblyscript": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

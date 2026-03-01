@@ -1,0 +1,17 @@
+{
+  "targets": {
+    "debug": {
+      "sourceMap": true,
+      "debug": true
+    },
+    "release": {
+      "optimize": true,
+      "noAssert": true,
+      "sourceMap": false
+    }
+  },
+  "options": {
+    "exportRuntime": false,
+    "runtime": "stub"
+  }
+}

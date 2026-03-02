@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SignalStake BTC — DeFi on Bitcoin L1</title>
+<meta name="description" content="Auto-compounding BTC staking vault with signal-based yield optimization on Bitcoin Layer 1 via OP_NET"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:        #05080D;
+  --bg1:       #090E16;
+  --bg2:       #0E1520;
+  --bg3:       #141C2A;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+  --tx1:       #DDE4EF;
+  --tx2:       #7A8899;
+  --tx3:       #3D4D5E;
+  --btc:       #F7931A;
+  --btc2:      #E8830A;
+  --btcdim:    rgba(247,147,26,0.10);
+  --green:     #1DB954;
+  --blue:      #3B82F6;
+  --amber:     #F59E0B;
+  --red:       #EF4444;
+  --r1: 6px; --r2: 10px; --r3: 14px; --r4: 20px;
+}
+
+html,body{background:var(--bg);color:var(--tx1);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+
+/* Noise overlay */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:0.4;}
+
+/* Grid bg */
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(247,147,26,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(247,147,26,0.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+
+.wrap{position:relative;z-index:1;}
+
+/* ── HEADER ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;border-bottom:1px solid var(--border);background:rgba(5,8,13,0.8);backdrop-filter:blur(20px);position:sticky;top:0;z-index:100;}
+
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--btc),var(--btc2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 24px rgba(247,147,26,0.35),0 0 60px rgba(247,147,26,0.1);}
+.logo-text{font-size:16px;font-weight:800;letter-spacing:-0.3px;}
+.logo-sub{font-size:9px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
+
+.header-right{display:flex;align-items:center;gap:10px;}
+.badge-net{padding:4px 12px;background:var(--btcdim);border:1px solid rgba(247,147,26,0.2);border-radius:20px;font-size:10px;color:var(--btc);font-weight:700;letter-spacing:1.5px;}
+
+.btn-connect{padding:9px 22px;background:linear-gradient(135deg,var(--btc),var(--btc2));border:none;border-radius:var(--r1);color:#000;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;cursor:pointer;box-shadow:0 0 20px rgba(247,147,26,0.25);transition:all .2s;}
+.btn-connect:hover{box-shadow:0 0 30px rgba(247,147,26,0.45);transform:translateY(-1px);}
+
+.wallet-addr{padding:8px 16px;background:rgba(29,185,84,0.08);border:1px solid rgba(29,185,84,0.25);border-radius:var(--r1);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);display:none;}
+.wallet-addr.show{display:block;}
+
+/* ── HERO ── */
+.hero{text-align:center;padding:64px 40px 48px;position:relative;}
+.hero-eyebrow{font-size:10px;letter-spacing:4px;color:var(--tx3);text-transform:uppercase;margin-bottom:16px;}
+.hero h1{font-size:clamp(28px,4vw,48px);font-weight:800;line-height:1.1;letter-spacing:-1px;margin-bottom:16px;}
+.hero h1 span{color:var(--btc);text-shadow:0 0 40px rgba(247,147,26,0.4);}
+.hero p{font-size:15px;color:var(--tx2);max-width:500px;margin:0 auto 0;line-height:1.6;font-weight:400;}
+
+/* Glow orb behind hero */
+.hero::before{content:'';position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(247,147,26,0.06) 0%,transparent 70%);pointer-events:none;}
+
+/* ── TICKER ── */
+.ticker-wrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg1);overflow:hidden;height:36px;display:flex;align-items:center;}
+.ticker{display:flex;gap:64px;animation:ticker 18s linear infinite;white-space:nowrap;padding:0 40px;}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ticker-item{font-family:'JetBrains Mono',monospace;font-size:11px;display:flex;gap:8px;align-items:center;}
+.ticker-label{color:var(--tx3);}
+.ticker-val{color:var(--tx1);}
+.ticker-up{color:var(--green);}
+
+/* ── MAIN GRID ── */
+main{max-width:1140px;margin:0 auto;padding:36px 40px;display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start;}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r3);padding:24px;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.015) 0%,transparent 60%);pointer-events:none;}
+
+.card-label{font-size:10px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;font-weight:600;}
+
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:20px;position:relative;overflow:hidden;animation:fadeUp .5s ease both;}
+.stat-accent{position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0;}
+.stat-label{font-size:10px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.stat-value{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;line-height:1.2;}
+.stat-sub{font-size:11px;color:var(--tx3);margin-top:4px;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* Projections */
+.proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:0;}
+.proj-card{background:rgba(247,147,26,0.04);border:1px solid rgba(247,147,26,0.10);border-radius:var(--r1);padding:16px;}
+.proj-label{font-size:10px;color:var(--tx3);letter-spacing:1px;margin-bottom:6px;}
+.proj-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--btc);}
+
+/* ── SIGNAL GAUGE ── */
+.signal-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
+.gauge-svg{overflow:visible;}
+.gauge-track{fill:none;stroke:rgba(255,255,255,0.05);stroke-width:10;stroke-linecap:round;}
+.gauge-fill{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1.5s cubic-bezier(.4,0,.2,1),stroke .5s ease;}
+.gauge-bg-ring{fill:none;stroke:rgba(247,147,26,0.04);stroke-width:22;}
+
+.signal-score-num{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:600;text-anchor:middle;transition:fill .5s;}
+.signal-score-denom{font-size:10px;text-anchor:middle;fill:rgba(255,255,255,0.2);letter-spacing:1px;}
+
+.signal-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all .5s;}
+.signal-dot{width:7px;height:7px;border-radius:50%;animation:pulse-dot 1.8s ease-in-out infinite;}
+@keyframes pulse-dot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.6}}
+
+.sub-scores{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;}
+.sub-score{background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center;}
+.sub-score-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;}
+.sub-score-max{font-size:9px;color:var(--tx3);}
+.sub-score-label{font-size:9px;color:var(--tx3);margin-top:3px;letter-spacing:.5px;text-transform:uppercase;}
+
+/* ── STAKE PANEL ── */
+.tabs{display:flex;gap:6px;margin-bottom:18px;}
+.tab{flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:all .2s;}
+.tab.active{background:var(--btcdim);border:1px solid rgba(247,147,26,0.3);color:var(--btc);}
+.tab.inactive{background:transparent;border:1px solid transparent;color:var(--tx3);}
+
+.balance-row{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:var(--r1);padding:10px 14px;margin-bottom:14px;}
+.balance-label{font-size:11px;color:var(--tx3);}
+.balance-val{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx1);}
+
+.input-wrap{position:relative;margin-bottom:12px;}
+.amount-input{width:100%;background:var(--bg1);border:1px solid var(--border2);border-radius:var(--r1);padding:13px 52px 13px 14px;color:var(--tx1);font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;transition:border-color .2s;}
+.amount-input:focus{border-color:rgba(247,147,26,0.4);}
+.input-unit{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--btc);font-size:12px;font-weight:700;}
+
+.btn-main{width:100%;padding:13px;background:linear-gradient(135deg,var(--btc),var(--btc2));border:none;border-radius:var(--r1);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;letter-spacing:.5px;cursor:pointer;margin-bottom:8px;transition:all .2s;box-shadow:0 4px 20px rgba(247,147,26,0.2);}
+.btn-main:hover{box-shadow:0 4px 30px rgba(247,147,26,0.4);transform:translateY(-1px);}
+.btn-main:disabled{background:rgba(255,255,255,0.06);color:var(--tx3);box-shadow:none;transform:none;cursor:not-allowed;}
+
+.btn-compound{width:100%;padding:11px;background:transparent;border:1px solid rgba(29,185,84,0.3);border-radius:var(--r1);color:var(--green);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;}
+.btn-compound:hover{background:rgba(29,185,84,0.06);border-color:rgba(29,185,84,0.5);}
+
+/* ── RISK WARNING ── */
+.risk-warn{background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);border-radius:var(--r2);padding:14px 18px;display:flex;gap:12px;align-items:flex-start;margin-bottom:20px;display:none;}
+.risk-warn.show{display:flex;}
+.risk-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.risk-title{font-size:12px;font-weight:700;color:var(--red);margin-bottom:3px;}
+.risk-body{font-size:11px;color:rgba(239,68,68,0.65);line-height:1.5;}
+
+/* ── TX SUCCESS ── */
+.tx-success{background:rgba(29,185,84,0.06);border:1px solid rgba(29,185,84,0.2);border-radius:var(--r1);padding:12px 16px;font-size:12px;color:var(--green);display:none;margin-bottom:14px;animation:fadeUp .3s ease;}
+.tx-success.show{display:block;}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--border);padding:20px 40px;display:flex;justify-content:space-between;align-items:center;margin-top:40px;}
+.footer-left{font-size:11px;color:var(--tx3);}
+.footer-links{display:flex;gap:20px;}
+.footer-link{font-size:11px;color:var(--tx3);text-decoration:none;letter-spacing:.5px;}
+.footer-link:hover{color:var(--tx2);}
+
+/* ── LIVE DOT ── */
+.live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--green);font-weight:600;letter-spacing:1px;}
+.live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse-dot 1.5s ease-in-out infinite;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  header{padding:0 20px;}
+  .logo-sub{display:none;}
+  main{grid-template-columns:1fr;padding:20px;}
+  .stats-grid{grid-template-columns:1fr 1fr;}
+  .hero{padding:40px 20px 32px;}
+  .hero h1{font-size:26px;}
+  footer{padding:16px 20px;flex-direction:column;gap:12px;text-align:center;}
+  .ticker{padding:0 20px;}
+}
+
+@media(max-width:420px){
+  .stats-grid{grid-template-columns:1fr;}
+  .header-right .badge-net{display:none;}
+}
+
+/* Stagger animations */
+.stat-card:nth-child(1){animation-delay:.05s}
+.stat-card:nth-child(2){animation-delay:.10s}
+.stat-card:nth-child(3){animation-delay:.15s}
+.stat-card:nth-child(4){animation-delay:.20s}
+
+/* Number counter animation */
+@keyframes countUp{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">₿</div>
+    <div>
+      <div class="logo-text">SignalStake BTC</div>
+      <div class="logo-sub">DeFi on Bitcoin L1</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="badge-net">TESTNET</div>
+    <div class="live"><span class="live-dot"></span>OP_NET LIVE</div>
+    <div class="wallet-addr" id="walletAddr"></div>
+    <button class="btn-connect" id="connectBtn" onclick="connectWallet()">Connect OP_WALLET</button>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">The DeFi Signal · Bitcoin Layer 1</div>
+  <h1>Make Money Work<br>on Bitcoin. <span>DeFi on L1.</span></h1>
+  <p>Auto-compounding BTC staking vault with signal-based yield optimization — powered by OP_NET, natively on Bitcoin.</p>
+</div>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker" id="ticker">
+    <span class="ticker-item"><span class="ticker-label">TOTAL STAKED</span><span class="ticker-val" id="t1">4.28371900 BTC</span></span>
+    <span class="ticker-item"><span class="ticker-label">APY</span><span class="ticker-up" id="t2">12.47%</span></span>
+    <span class="ticker-item"><span class="ticker-label">SIGNAL</span><span class="ticker-val" id="t3">72 / 100</span></span>
+    <span class="ticker-item"><span class="ticker-label">LAST COMPOUND</span><span class="ticker-val">BLOCK #892,441</span></span>
+    <span class="ticker-item"><span class="ticker-label">YIELD PENDING</span><span class="ticker-up">0.00184200 BTC</span></span>
+    <span class="ticker-item"><span class="ticker-label">NETWORK</span><span class="ticker-val">BITCOIN TESTNET</span></span>
+    <!-- duplicate for seamless loop -->
+    <span class="ticker-item"><span class="ticker-label">TOTAL STAKED</span><span class="ticker-val">4.28371900 BTC</span></span>
+    <span class="ticker-item"><span class="ticker-label">APY</span><span class="ticker-up">12.47%</span></span>
+    <span class="ticker-item"><span class="ticker-label">SIGNAL</span><span class="ticker-val">72 / 100</span></span>
+    <span class="ticker-item"><span class="ticker-label">LAST COMPOUND</span><span class="ticker-val">BLOCK #892,441</span></span>
+    <span class="ticker-item"><span class="ticker-label">YIELD PENDING</span><span class="ticker-up">0.00184200 BTC</span></span>
+    <span class="ticker-item"><span class="ticker-label">NETWORK</span><span class="ticker-val">BITCOIN TESTNET</span></span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+
+  <!-- LEFT COLUMN -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Risk warning (hidden by default) -->
+    <div class="risk-warn" id="riskWarn">
+      <div class="risk-icon">⚠️</div>
+      <div>
+        <div class="risk-title">Risk Warning — Signal Below Threshold</div>
+        <div class="risk-body">Signal score has dropped below 30. High risk conditions detected. Consider reducing exposure or waiting for improved signal conditions before staking.</div>
+      </div>
+    </div>
+
+    <!-- TX success -->
+    <div class="tx-success" id="txSuccess"></div>
+
+    <!-- Stats grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-accent" style="background:var(--btc);"></div>
+        <div class="stat-label">Total BTC Staked</div>
+        <div class="stat-value" style="color:var(--btc);" id="statTotal">4.28371900</div>
+        <div class="stat-sub">BTC · Vault total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-accent" style="background:var(--green);"></div>
+        <div class="stat-label">Current APY</div>
+        <div class="stat-value" style="color:var(--green);" id="statApy">12.47%</div>
+        <div class="stat-sub">Annualized estimate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-accent" style="background:rgba(255,255,255,0.1);"></div>
+        <div class="stat-label">Your Stake</div>
+        <div class="stat-value" id="statUser" style="color:var(--tx2);">—</div>
+        <div class="stat-sub" id="statUserSub">Connect wallet to view</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-accent" style="background:var(--blue);"></div>
+        <div class="stat-label">Accumulated Yield</div>
+        <div class="stat-value" style="color:var(--blue);">0.00184200</div>
+        <div class="stat-sub">BTC · Pending compound</div>
+      </div>
+    </div>
+
+    <!-- Projections -->
+    <div class="card">
+      <div class="card-label">Yield Projections</div>
+      <div class="proj-grid">
+        <div class="proj-card">
+          <div class="proj-label">30-Day Projection</div>
+          <div class="proj-val" id="proj30">4.32678340 BTC</div>
+        </div>
+        <div class="proj-card">
+          <div class="proj-label">90-Day Projection</div>
+          <div class="proj-val" id="proj90">4.41441230 BTC</div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:var(--tx3);margin-top:14px;line-height:1.5;">* Estimates based on current APY and vault conditions. Not financial advice. Past performance does not guarantee future results.</p>
+    </div>
+
+    <!-- Contract info -->
+    <div class="card">
+      <div class="card-label">Contract · OP_NET Bitcoin L1</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;letter-spacing:1px;">NETWORK</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--btc);">Bitcoin Testnet</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;letter-spacing:1px;">LAST COMPOUND</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;">Block #892,441</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;letter-spacing:1px;">CONTRACT</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2);">Deploy via opnet-cli</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;letter-spacing:1px;">PROTOCOL</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;">OP_NET v1</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Signal panel -->
+    <div class="card">
+      <div class="card-label">Signal Strength</div>
+      <div class="signal-wrap">
+
+        <svg class="gauge-svg" width="180" height="110" viewBox="0 0 180 110">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#F7931A"/>
+              <stop offset="100%" style="stop-color:#22C55E"/>
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <!-- bg ring -->
+          <circle class="gauge-bg-ring" cx="90" cy="90" r="66"/>
+          <!-- track arc -->
+          <path class="gauge-track" d="M 15.8 90 A 74 74 0 0 1 164.2 90" stroke-dasharray="none"/>
+          <!-- fill arc -->
+          <path id="gaugeFill" class="gauge-fill" d="M 15.8 90 A 74 74 0 0 1 164.2 90"
+            stroke="url(#gaugeGrad)" filter="url(#glow)"
+            stroke-dasharray="232" stroke-dashoffset="58"/>
+          <!-- score -->
+          <text id="gaugeScore" class="signal-score-num" x="90" y="84" fill="#22C55E">72</text>
+          <text class="signal-score-denom" x="90" y="100">/ 100</text>
+        </svg>
+
+        <div class="signal-badge" id="signalBadge" style="background:rgba(29,185,84,0.12);border:1px solid rgba(29,185,84,0.3);color:var(--green);">
+          <span class="signal-dot" id="signalDot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></span>
+          <span id="signalLevel">STRONG SIGNAL</span>
+        </div>
+
+        <p style="font-size:12px;color:var(--tx2);text-align:center;line-height:1.5;" id="signalDesc">Strong Signal — Optimal Conditions</p>
+
+        <div class="sub-scores">
+          <div class="sub-score">
+            <div class="sub-score-val" style="color:var(--green);" id="ssYield">38<span class="sub-score-max">/50</span></div>
+            <div class="sub-score-label">Yield</div>
+          </div>
+          <div class="sub-score">
+            <div class="sub-score-val" style="color:var(--red);" id="ssRisk">12<span class="sub-score-max">/30</span></div>
+            <div class="sub-score-label">Risk</div>
+          </div>
+          <div class="sub-score">
+            <div class="sub-score-val" style="color:var(--blue);" id="ssLiq">16<span class="sub-score-max">/20</span></div>
+            <div class="sub-score-label">Liquidity</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stake panel -->
+    <div class="card">
+      <div class="card-label">Manage Position</div>
+
+      <div class="tabs">
+        <button class="tab active" id="tabStake" onclick="setTab('stake')">⚡ Stake</button>
+        <button class="tab inactive" id="tabWithdraw" onclick="setTab('withdraw')">↩ Withdraw</button>
+      </div>
+
+      <div class="balance-row">
+        <span class="balance-label">Your Staked Balance</span>
+        <span class="balance-val" id="panelBalance">— BTC</span>
+      </div>
+
+      <div class="input-wrap">
+        <input class="amount-input" type="number" step="0.00000001" min="0" placeholder="0.00000000" id="amountInput"/>
+        <span class="input-unit">BTC</span>
+      </div>
+
+      <button class="btn-main" id="actionBtn" onclick="handleAction()">⚡ Stake BTC</button>
+      <button class="btn-compound" onclick="handleCompound()">🔄 Compound Yield</button>
+    </div>
+
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">SignalStake BTC — Built on OP_NET · Bitcoin Layer 1 · Testnet</div>
+  <div class="footer-links">
+    <a class="footer-link" href="https://opnet.org" target="_blank">OP_NET</a>
+    <a class="footer-link" href="https://github.com" target="_blank">GitHub</a>
+    <a class="footer-link" href="https://testnet.opnet.org" target="_blank">Testnet RPC</a>
+  </div>
+</footer>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let connected = false;
+let currentTab = 'stake';
+let signalScore = 72;
+let userBalance = 0;
+
+// ── Wallet Connect (Demo) ─────────────────────────────────────────────────
+function connectWallet() {
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = 'Connecting...';
+  btn.disabled = true;
+  setTimeout(() => {
+    connected = true;
+    const addr = 'bc1q7x4k...f9a2';
+    document.getElementById('walletAddr').textContent = '● ' + addr;
+    document.getElementById('walletAddr').classList.add('show');
+    btn.style.display = 'none';
+    userBalance = 0.24817500;
+    document.getElementById('statUser').textContent = userBalance.toFixed(8);
+    document.getElementById('statUser').style.color = 'var(--tx1)';
+    document.getElementById('statUserSub').textContent = '5.793% of vault';
+    document.getElementById('panelBalance').textContent = userBalance.toFixed(8) + ' BTC';
+    showTx('✅ OP_WALLET connected — bc1q7x4k...f9a2');
+  }, 1200);
+}
+
+// ── Tab ───────────────────────────────────────────────────────────────────
+function setTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabStake').className    = tab === 'stake'    ? 'tab active' : 'tab inactive';
+  document.getElementById('tabWithdraw').className = tab === 'withdraw' ? 'tab active' : 'tab inactive';
+  document.getElementById('actionBtn').textContent = tab === 'stake' ? '⚡ Stake BTC' : '↩ Withdraw BTC';
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────
+function handleAction() {
+  if (!connected) { alert('Please connect your OP_WALLET first.'); return; }
+  const val = parseFloat(document.getElementById('amountInput').value);
+  if (!val || val <= 0) { return; }
+  const btn = document.getElementById('actionBtn');
+  btn.textContent = 'Simulating...';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.textContent = 'Broadcasting...';
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = currentTab === 'stake' ? '⚡ Stake BTC' : '↩ Withdraw BTC';
+      document.getElementById('amountInput').value = '';
+      if (currentTab === 'stake') {
+        userBalance += val;
+        showTx('✅ Staked ' + val.toFixed(8) + ' BTC — Transaction confirmed on Bitcoin testnet');
+      } else {
+        userBalance = Math.max(0, userBalance - val);
+        showTx('✅ Withdrawn ' + val.toFixed(8) + ' BTC — Transaction confirmed on Bitcoin testnet');
+      }
+      document.getElementById('statUser').textContent = userBalance.toFixed(8);
+      document.getElementById('panelBalance').textContent = userBalance.toFixed(8) + ' BTC';
+    }, 1500);
+  }, 800);
+}
+
+function handleCompound() {
+  if (!connected) { alert('Please connect your OP_WALLET first.'); return; }
+  const btn = document.querySelector('.btn-compound');
+  btn.textContent = 'Compounding...';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.textContent = '🔄 Compound Yield';
+    btn.disabled = false;
+    showTx('✅ Yield compounded — 0.00184200 BTC added to vault principal');
+    // Update total staked
+    const total = parseFloat(document.getElementById('statTotal').textContent) + 0.001842;
+    document.getElementById('statTotal').textContent = total.toFixed(8);
+  }, 2000);
+}
+
+function showTx(msg) {
+  const el = document.getElementById('txSuccess');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 5000);
+}
+
+// ── Signal Gauge Animation ────────────────────────────────────────────────
+function updateGauge(score) {
+  const arcLen = 232;
+  const offset = arcLen - (arcLen * score / 100);
+  const fill = document.getElementById('gaugeFill');
+  const scoreEl = document.getElementById('gaugeScore');
+  const badge = document.getElementById('signalBadge');
+  const dot = document.getElementById('signalDot');
+  const level = document.getElementById('signalLevel');
+  const desc = document.getElementById('signalDesc');
+  const warn = document.getElementById('riskWarn');
+
+  fill.style.strokeDashoffset = offset;
+  scoreEl.textContent = score;
+
+  let color, levelText, descText;
+  if (score >= 70)      { color='var(--green)'; levelText='STRONG SIGNAL'; descText='Strong Signal — Optimal Conditions'; }
+  else if (score >= 50) { color='var(--blue)';  levelText='MODERATE';      descText='Moderate Signal — Stable Conditions'; }
+  else if (score >= 30) { color='var(--amber)'; levelText='WEAK SIGNAL';   descText='Weak Signal — Monitor Closely'; }
+  else                  { color='var(--red)';   levelText='DANGER ZONE';   descText='Danger Zone — High Risk Detected'; }
+
+  scoreEl.setAttribute('fill', color);
+  badge.style.background = color.replace(')', ',0.12)').replace('var(--', 'rgba(').replace('green','29,185,84').replace('blue','59,130,246').replace('amber','245,158,11').replace('red','239,68,68');
+  badge.style.border = '1px solid ' + color.replace(')', ',0.3)').replace('var(--', 'rgba(').replace('green','29,185,84').replace('blue','59,130,246').replace('amber','245,158,11').replace('red','239,68,68');
+  badge.style.color = color;
+  dot.style.background = color;
+  dot.style.boxShadow = '0 0 6px ' + color;
+  level.textContent = levelText;
+  desc.textContent = descText;
+  warn.classList.toggle('show', score < 30);
+  document.getElementById('t3').textContent = score + ' / 100';
+}
+
+// ── Live data simulation ──────────────────────────────────────────────────
+function simulateLiveData() {
+  // Slowly drift signal score
+  const drift = (Math.random() - 0.48) * 2;
+  signalScore = Math.max(5, Math.min(95, signalScore + drift));
+  updateGauge(Math.round(signalScore));
+
+  // Drift APY slightly
+  const apy = 12.47 + (Math.random() - 0.5) * 0.3;
+  document.getElementById('statApy').textContent = apy.toFixed(2) + '%';
+  document.getElementById('t2').textContent = apy.toFixed(2) + '%';
+
+  // Update sub scores
+  const y = Math.round(38 + (Math.random()-.5)*4);
+  const r = Math.round(12 + (Math.random()-.5)*3);
+  const l = Math.round(16 + (Math.random()-.5)*2);
+  document.getElementById('ssYield').innerHTML = y + '<span class="sub-score-max">/50</span>';
+  document.getElementById('ssRisk').innerHTML  = r + '<span class="sub-score-max">/30</span>';
+  document.getElementById('ssLiq').innerHTML   = l + '<span class="sub-score-max">/20</span>';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+updateGauge(72);
+setInterval(simulateLiveData, 4000);
+
+// Animate numbers on load
+document.querySelectorAll('.stat-value').forEach((el, i) => {
+  el.style.animation = `fadeUp 0.5s ease ${i * 0.08}s both`;
+});
+</script>
+</body>
+</html>
